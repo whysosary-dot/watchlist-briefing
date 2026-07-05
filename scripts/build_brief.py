@@ -79,14 +79,46 @@ def source_tier(src):
         return 2
     return None
 
-def score_item(title, tier, aliases=None, macro=False):
-    if aliases and not any(a in title for a in aliases):
+def _norm(s):
+    """공백 제거 + 소문자 — 'SK 하이닉스'/'sk하이닉스' 같은 표기 차이 흡수"""
+    return re.sub(r'\s+', '', s or '').lower()
+
+def relevance(title, aliases=None, strict=False):
+    """제목-별칭 관련성 등급.
+    2 = 별칭이 제목에 그대로 포함 (확실)
+    1 = 별칭의 앞/뒤 3자 이상이 제목에 부분 포함 (준확실: '한국조선해양'→'조선해양')
+    0 = 제목엔 없음 — 단, 검색 쿼리 자체가 회사명이므로 본문 관련 기사일 가능성 높음.
+        이 경우 score_item에서 -1 페널티 → 이벤트 키워드 등 추가 근거가 있어야 통과.
+    -1 = strict 블록(동명이인·일반명사 회사명)에서 제목 미포함 → 즉시 탈락(-99)
+    """
+    if not aliases:
+        return 2  # 별칭 없는 블록(매크로 등)은 게이트 없음
+    nt = _norm(title)
+    for a in aliases:
+        if _norm(a) and _norm(a) in nt:
+            return 2
+    for a in aliases:
+        na = _norm(a)
+        if len(na) >= 4 and (na[:3] in nt or na[-3:] in nt):
+            return 1
+    return -1 if strict else 0
+
+def score_item(title, tier, aliases=None, macro=False, strict=False):
+    """점수 = 이벤트키워드(최대 +4) + 출처(tier1 +2/tier2 +1) + 관련성(+2/+1/0)
+             - 노이즈(-4/개) - (제목 무별칭 -1) [+ 매크로 +2]
+    THRESHOLD(기본 2) 이상만 후보로 채택.
+    → 제목에 회사명이 없어도 tier1 출처 + 이벤트성(수주·실적·계약 등)이면 통과."""
+    rel = relevance(title, aliases, strict)
+    if rel < 0:
         return -99
     s = min(sum(1 for k in EVENT_KW if k in title), 2) * 2
     for k in NOISE_KW:
         if k in title:
             s -= 4
     s += 2 if tier == 1 else 1
+    s += rel
+    if rel == 0:
+        s -= 1  # 제목 무별칭 → 이벤트 키워드 등 추가 근거 필요
     if macro:
         s += 2  # 매크로 블록은 시황 자체가 목적
     return s
@@ -111,21 +143,21 @@ def dedup(items, kept=None):
             out.append(it)
     return out
 
-def collect_block(key, queries=None, site_queries=None, aliases=None, macro=False, prior=None):
+def collect_block(key, queries=None, site_queries=None, aliases=None, macro=False, prior=None, strict=False):
     items = []
     for q in (queries or []):
         for r in rss_search(q):
             tier = source_tier(r['source'])
             if tier is None:
                 continue
-            sc = score_item(r['title'], tier, aliases, macro)
+            sc = score_item(r['title'], tier, aliases, macro, strict)
             if sc >= THRESHOLD:
                 items.append(dict(r, kind='news', key=key, tier=tier, score=sc))
         time.sleep(0.3)
     for q in (site_queries or []):
         for r in rss_search(q):
             # 전문지 지정 — 화이트리스트 면제. 단 기업 블록이면 관련성(별칭) 필터 유지
-            sc = score_item(r['title'], 1, aliases, macro)
+            sc = score_item(r['title'], 1, aliases, macro, strict)
             if sc >= THRESHOLD:
                 items.append(dict(r, kind='news', key=key, tier=1, score=sc))
         time.sleep(0.3)
@@ -214,11 +246,13 @@ def cmd_collect():
             all_companies.append(c)
             queries = [f'"{c["name"]}" when:2d'] + c.get('extra_queries', [])
             add_block(f"{sec['id']}::{c['name']}", c['name'], queries=queries,
-                      site_queries=c.get('site_queries'), aliases=c.get('aliases'))
+                      site_queries=c.get('site_queries'), aliases=c.get('aliases'),
+                      strict=c.get('strict', False))
         sb = sec.get('sector_block')
         if sb:
             add_block(f"{sec['id']}::sector", sb['name'], queries=sb.get('queries'),
-                      site_queries=sb.get('site_queries'), aliases=sb.get('aliases'))
+                      site_queries=sb.get('site_queries'), aliases=sb.get('aliases'),
+                      strict=sb.get('strict', False))
 
     dart_items = fetch_dart(all_companies)
     all_items.extend(dart_items)

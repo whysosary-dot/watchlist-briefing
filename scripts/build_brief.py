@@ -30,7 +30,7 @@ import requests
 KST = timezone(timedelta(hours=9))
 NOW = datetime.now(KST)
 TODAY_ISO = NOW.strftime('%Y-%m-%d')
-CAND_PATH = '/tmp/brief_candidates.json'
+CAND_PATH = '/sessions/upbeat-lucid-gauss/brief/brief_candidates.json'
 CFG_PATH = os.environ.get('CFG_PATH', 'watchlist.json')
 REPO = 'whysosary-dot/watchlist-briefing'
 UA = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
@@ -289,7 +289,7 @@ def news_rows(items, max_n=3):
         title = a['title'][:75] + ('…' if len(a['title']) > 75 else '')
         src = f' <span style="color:#b6bcc5;">— {h.escape(a["source"])}</span>' if a.get('source') else ''
         out += (f'<div class="news-row"><span class="news-dot">•</span><span class="news-text">'
-                f'[{a["date"]}] {h.escape(title)}{src} <a href="{a["url"]}" target="_blank">[출처]</a></span></div>\n')
+                f'[{a["date"]}] <a class="title-link" href="{a["url"]}" target="_blank">{h.escape(title)}</a>{src} <a href="{a["url"]}" target="_blank">[출처]</a></span></div>\n')
     return out
 
 def cmd_build(picks_path):
@@ -330,7 +330,7 @@ def cmd_build(picks_path):
             dt = d['date']
             dt_s = f'{dt[4:6]}.{dt[6:8]}' if len(dt) == 8 else dt
             rows += (f'<div class="news-row"><span class="news-dot">📄</span><span class="news-text">'
-                     f'<b>{d["company"]}</b> — {h.escape(d["title"])} [{dt_s}] <a href="{d["url"]}" target="_blank">[공시]</a></span></div>\n')
+                     f'<b>{d["company"]}</b> — <a class="title-link" href="{d["url"]}" target="_blank">{h.escape(d["title"])}</a> [{dt_s}] <a href="{d["url"]}" target="_blank">[공시]</a></span></div>\n')
         dart_html = f'''<div class="macro-box" style="background:#eff6ff;border-color:#bfdbfe;border-left-color:#2563eb;">
     <h2 style="color:#1e40af;">📄 관심종목 주요 공시 (전날~당일)</h2>
     {rows}</div>'''
@@ -390,6 +390,8 @@ body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; back
 .news-dot {{ color:#d1d5db; flex-shrink:0; font-size:12px; margin-top:2px; }}
 .news-text {{ font-size:13px; color:#374151; line-height:1.55; }}
 .news-text a {{ color:#9ca3af; font-size:11px; text-decoration:none; margin-left:5px; }}
+.news-text a.title-link {{ color:inherit; font-size:13px; margin-left:0; }}
+.news-text a.title-link:hover {{ text-decoration:underline; }}
 .no-news {{ font-size:12px; color:#9ca3af; padding-left:8px; font-style:italic; }}
 .footer {{ text-align:center; margin-top:24px; font-size:11px; color:#9ca3af; }}
 @media (max-width:600px) {{ .wrap {{ padding:14px 10px; }} .hdr h1 {{ font-size:17px; }} }}

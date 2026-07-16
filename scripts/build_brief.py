@@ -36,8 +36,23 @@ REPO = 'whysosary-dot/watchlist-briefing'
 UA = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
       'Accept-Language': 'ko-KR,ko;q=0.9'}
 
-with open(CFG_PATH, encoding='utf-8') as f:
-    CFG = json.load(f)
+def _load_cfg():
+    # 1) 로컬 파일 우선 (있으면)
+    if os.path.exists(CFG_PATH):
+        with open(CFG_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    # 2) 비공개 리포(invest-private)에서 로드 — 토큰 필요
+    import requests as _rq
+    tok = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN') or ''
+    if not tok:
+        tf = os.path.expanduser('~/Desktop/Claude/stock-valuation/.github_token')
+        if os.path.exists(tf): tok = open(tf).read().strip()
+    r = _rq.get('https://api.github.com/repos/whysosary-dot/invest-private/contents/interest/watchlist.json?ref=main',
+                headers={'Authorization': f'token {tok}', 'Accept': 'application/vnd.github.raw'}, timeout=20)
+    r.raise_for_status()
+    return r.json()
+
+CFG = _load_cfg()
 T1 = CFG['source_whitelist']['tier1']
 T2 = CFG['source_whitelist']['tier2']
 EVENT_KW = CFG['score']['event_keywords']

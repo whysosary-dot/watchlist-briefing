@@ -30,7 +30,7 @@ import requests
 KST = timezone(timedelta(hours=9))
 NOW = datetime.now(KST)
 TODAY_ISO = NOW.strftime('%Y-%m-%d')
-CAND_PATH = '/sessions/upbeat-lucid-gauss/brief/brief_candidates.json'
+CAND_PATH = os.environ.get('CAND_PATH', '/tmp/brief_candidates.json')  # 세션 무관 경로
 CFG_PATH = os.environ.get('CFG_PATH', 'watchlist.json')
 REPO = 'whysosary-dot/watchlist-briefing'
 UA = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
